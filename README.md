@@ -1,17 +1,12 @@
 NAME
 ====
 
-Raw::Socket - blah blah blah
-
-SYNOPSIS
-========
-
-    use Raw::Socket;
+Raw::Socket - Raw level socket client using NativeCall
 
 DESCRIPTION
 ===========
 
-Raw::Socket is ...
+Raw::Socket is socket library using [MoarVM issue #165](https://github.com/MoarVM/MoarVM/issues/165).
 
 COPYRIGHT AND LICENSE
 =====================
