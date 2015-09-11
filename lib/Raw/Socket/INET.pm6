@@ -15,6 +15,10 @@ my class sockaddr_in is repr('CStruct') {
     has uint32 $.sin_addr   is rw;
     has uint64 $.dummy;
 
+    method size() {
+        16 # 2+2+4+8
+    }
+
     method pack_sockaddr_in($port, $ip_address) {
         my $addr = sockaddr_in.new();
         $addr.sin_family = AF_INET;
@@ -26,6 +30,9 @@ my class sockaddr_in is repr('CStruct') {
 
 
 my module private {
+    our sub connect(int $sockfd, sockaddr_in $addr, int32 $len)
+        returns int
+        is native { }
     our sub bind(int $sockfd, sockaddr_in $addr, int32 $len)
         returns int
         is native { }
@@ -48,7 +55,11 @@ sub perror(Str $s)
     is native { ... };
 
 sub bind(int $sock-fd, sockaddr_in $addr) {
-    return private::bind($sock-fd, $addr, 16);
+    return private::bind($sock-fd, $addr, sockaddr_in.size);
+}
+
+sub connect(int $sock-fd, sockaddr_in $addr) {
+    return private::connect($sock-fd, $addr, sockaddr_in.size);
 }
 
 sub htons(uint16 $hostshort)
@@ -80,6 +91,10 @@ sub close(int $fd)
     returns int
     is native { ... }
 
+sub inet_addr(Str $src)
+    returns int32
+    is native { ... }
+
 sub send(int $sockfd, Blob $buf, int $flags) {
     return private::send($sockfd, $buf, $buf.elems, $flags);
 }
@@ -94,22 +109,38 @@ class Raw::Socket::INET {
     has $.listen;
     has $.localhost;
     has $.localport;
+    has $.host;
+    has $.port;
 
     method new(*%args is copy) {
         fail "Nothing given for new socket to connect or bind to" unless %args<host> || %args<listen>;
 
-        fail "client socket does not supported yet" unless %args<listen>;
         self.bless(|%args)!initialize()
     }
 
     method !initialize() {
-        self.socket(SOCK_STREAM, 0);
-        self.bind($.localport, INADDR_ANY);
-        self.listen(20);
+        if ($.listen) {
+            self!socket(SOCK_STREAM, 0);
+            self.bind($.localport, INADDR_ANY);
+            self!listen(20);
+        } elsif ($.host) {
+            fail "missing port inforamtion" unless $.port.defined;
+            # TODO: inet_addr doesn't support ipv6. use inet_pton instead.
+            # TODO: getaddrinfo
+            my $addr = sockaddr_in.pack_sockaddr_in($.port, inet_addr($.host));
+            $!fd = socket(AF_INET, SOCK_STREAM, 0);
+            if ($!fd < 0) {
+                # TODO: strerror_r
+                die "cannot open socket";
+            }
+            if (connect($!fd, $addr) == -1) {
+                die "cannot connect: $.host:$.port";
+            }
+        }
         return self;
     }
 
-    method socket($type, $protocol) {
+    method !socket($type, $protocol) {
         $!fd = socket(AF_INET, $type, $protocol);
         if ($!fd < 0) {
             die "cannot open socket";
@@ -123,7 +154,7 @@ class Raw::Socket::INET {
         }
     }
 
-    method listen($backlog) {
+    method !listen($backlog) {
         if (listen($!fd, 20) != 0 ) {
             die "cannot listen";
         }
@@ -137,7 +168,6 @@ class Raw::Socket::INET {
     }
 
     method recv(Buf $buf, int64 $len, int $flags) {
-        say $!fd;
         return recv($!fd, $buf, $len, $flags);
     }
 
