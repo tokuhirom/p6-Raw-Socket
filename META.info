@@ -1,0 +1,13 @@
+{
+  "name": "Raw::Socket",
+  "source-url": "",
+  "author": "Tokuhiro Matsuno",
+  "provides": {
+    "Raw::Socket": "lib/Raw/Socket.pm6"
+  },
+  "depends": [
+    
+  ],
+  "description": "",
+  "version": "*"
+}
