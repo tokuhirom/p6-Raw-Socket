@@ -125,8 +125,7 @@ class Raw::Socket::INET {
             self!listen(20);
         } elsif ($.host) {
             fail "missing port inforamtion" unless $.port.defined;
-            # TODO: inet_addr doesn't support ipv6. use inet_pton instead.
-            # TODO: getaddrinfo
+            # TODO: use getaddrinfo. ref https://github.com/h2o/h2o/blob/master/examples/libh2o/socket-client.c#L93
             my $addr = sockaddr_in.pack_sockaddr_in($.port, inet_addr($.host));
             $!fd = socket(AF_INET, SOCK_STREAM, 0);
             if ($!fd < 0) {
