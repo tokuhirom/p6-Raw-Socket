@@ -6,7 +6,7 @@ Raw::Socket - Raw level socket client using NativeCall
 DESCRIPTION
 ===========
 
-Raw::Socket is socket library using [MoarVM issue #165](https://github.com/MoarVM/MoarVM/issues/165).
+Raw::Socket is socket library. This is workaround for [MoarVM issue #165](https://github.com/MoarVM/MoarVM/issues/165).
 
 COPYRIGHT AND LICENSE
 =====================
