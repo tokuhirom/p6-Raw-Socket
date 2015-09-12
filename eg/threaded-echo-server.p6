@@ -11,29 +11,27 @@ sub info($msg as Str) {
     say "[{$*THREAD.id}] $msg";
 }
 
+
 # -------------------------------------------------------------------------
 
 class Echod {
     has @!threads;
     has $!sock;
+    has $!channel;
 
     method listen($port) {
         $!sock = Raw::Socket::INET.new(
-            listen => True,
+            listen => 60,
             localport => $port,
+            reuseaddr => True,
         );
     }
 
     method spawn-child() {
-        @!threads.push(start {
-            self.work();
-        });
-    }
-
-    method work() {
         while (1) {
-            info 'accepting..';
-            my $csock = $!sock.accept();
+            info "receive";
+            my $csock = $!channel.receive;
+
             info "clientfd: $csock";
             # say inet_ntoa($client_addr.sin_addr);
             # say ntohs($client_addr.sin_port);
@@ -54,12 +52,16 @@ class Echod {
     }
 
     method run($n) {
+        $!channel = Channel.new;
+
         for 1..$n {
-            self.spawn-child();
+            @!threads.push(start {
+                self.spawn-child();
+            });
         }
 
-        for @!threads {
-            .join
+        while my $csock = $!sock.accept {
+            $!channel.send($csock);
         }
     }
 }
