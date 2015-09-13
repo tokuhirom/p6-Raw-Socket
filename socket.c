@@ -11,7 +11,9 @@
 #include <netdb.h>
 
 typedef struct {
+  /* TODO: remove */
   int err;
+  const char *errmsg;
   int fd;
   union {
     struct sockaddr_in in;
@@ -31,8 +33,11 @@ void p6_socket_free(p6_socket* self) {
   free(self);
 }
 
-const char* p6_socket_strerror(p6_socket* sock) {
-  return strerror(sock->err);
+const char* p6_socket_strerror(p6_socket* self) {
+  if (self->errmsg != NULL) {
+    return self->errmsg;
+  }
+  return strerror(self->err);
 }
 
 int p6_socket_inet_socket(p6_socket* self) {
@@ -67,6 +72,51 @@ int p6_socket_inet_bind(p6_socket* self, const char* host, int port) {
   return n;
 }
 
+int p6_socket_connect(p6_socket* self, const char *host, const char* service) {
+  struct addrinfo hints;
+  struct addrinfo *result, *rp;
+  int sfd;
+  int s;
+
+  memset(&hints, 0, sizeof(struct addrinfo));
+  hints.ai_family = AF_UNSPEC;    /* Allow IPv4 or IPv6 */
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_flags = AI_ADDRCONFIG;
+  hints.ai_protocol = IPPROTO_TCP;
+  hints.ai_canonname = NULL;
+  hints.ai_addr = NULL;
+  hints.ai_next = NULL;
+
+  s = getaddrinfo(host, service, &hints, &result);
+  if (s != 0) {
+    self->errmsg = gai_strerror(s);
+    return -1;
+  }
+
+  for (rp = result; rp != NULL; rp = rp->ai_next) {
+    sfd = socket(rp->ai_family, rp->ai_socktype,
+                 rp->ai_protocol);
+    if (sfd == -1)
+      continue;
+
+    if (connect(sfd, rp->ai_addr, rp->ai_addrlen) == 0)
+      break;                  /* Success */
+
+    close(sfd);
+  }
+
+  freeaddrinfo(result);
+
+  if (rp == NULL) {               /* No address succeeded */
+    self->errmsg = "could not connect";
+    return -1;
+  }
+
+  self->fd = sfd;
+
+  return sfd;
+}
+
 int p6_socket_listen(p6_socket* self, int backlog) {
   int retval = listen(self->fd, backlog);
   self->err = errno;
@@ -86,14 +136,14 @@ int p6_socket_accept(p6_socket* self, p6_socket* csock) {
   return retval;
 }
 
-int p6_socket_recv(p6_socket* self, char* buf, size_t len, int flags) {
-  int retval = recv(self->fd, buf, len, flags);
+ssize_t p6_socket_recv(p6_socket* self, char* buf, size_t len, int flags) {
+  ssize_t retval = recv(self->fd, buf, len, flags);
   self->err = errno;
   return retval;
 }
 
-int p6_socket_close(p6_socket* self) {
-  int retval = close(self->fd);
+ssize_t p6_socket_close(p6_socket* self) {
+  ssize_t retval = close(self->fd);
   self->err = errno;
   return retval;
 }
@@ -104,106 +154,29 @@ int p6_socket_send(p6_socket* self, const char* buf, size_t len, int flags) {
   return retval;
 }
 
-#if 0
-
-tinysocket* tinysocket_accept(tinysocket* self, tinysocket* csock) {
-  struct sockaddr_in addr;
-  socklen_t size = sizeof(struct sockaddr_in);
-
-  int cfd = accept(self->fd, (struct sockaddr*)&addr, &size);
-  if (cfd >= 0) {
-    csock->fd = cfd;
-    return csock;
-  } else {
-    return NULL;
-  }
-}
-
-// @return NULL if succeeded, error message otherwise.
-const char* tinysocket_inet_connect(tinysocket* self, const char* host, const char *service) {
-  int sfd;
-
-  struct addrinfo hints;
-  memset(&hints, 0, sizeof(struct addrinfo));
-  hints.ai_family = AF_UNSPEC;    /* Allow IPv4 or IPv6 */
-  hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
-  hints.ai_flags = AI_PASSIVE;    /* For wildcard IP address */
-  hints.ai_protocol = 0;          /* Any protocol */
-  hints.ai_canonname = NULL;
-  hints.ai_addr = NULL;
-  hints.ai_next = NULL;
-
-  struct addrinfo *result;
-
-  int s = getaddrinfo(host, service, &hints, &result);
-  if (s != 0) {
-    return gai_strerror(s);
-  }
-
-  struct addrinfo* rp;
-  for (rp = result; rp != NULL; rp = rp->ai_next) {
-    sfd = socket(rp->ai_family, rp->ai_socktype,
-                rp->ai_protocol);
-    if (sfd == -1)
-      continue;
-
-    if (connect(sfd, rp->ai_addr, rp->ai_addrlen) != -1)
-      break;                  /* Success */
-
-    close(sfd);
-  }
-
-  freeaddrinfo(result);
-
-  if (rp == NULL) {               /* No address succeeded */
-    return strerror(errno);
-  }
-
-  self->fd = sfd;
-
-  return NULL;
-}
-
-void tinysocket_close(tinysocket* self) {
-  close(self->fd);
-}
-
-
-ssize_t tinysocket_read(tinysocket* self, void* buf, size_t count) {
-  return read(self->fd, buf, count);
-}
-
-const char* tinysocket_strerror() {
-  return strerror(errno);
-}
-
-// release resource.
-void tinysocket_free(tinysocket* self) {
-  free(self);
-}
-
+#ifdef TEST_CLIENT
 int main() {
-  tinysocket* sock = tinysocket_new();
+  p6_socket* sock = p6_socket_new();
   if (sock == NULL) {
-    printf("oops\n");
-    return;
+    printf("cannot allocate memory\n");
+    exit(1);
   }
 
-  const char * err = tinysocket_inet_connect(sock, "127.0.0.1", "http");
-  if (err!=NULL) {
-    printf("%s\n", err);
-    return;
+  if (p6_socket_connect(sock, "127.0.0.1", "9999") < 0) {
+    printf("%s\n", p6_socket_strerror(sock));
+    exit(1);
   }
-  int wrote = tinysocket_write(sock, "GET / HTTP/1.0\015\012\015\012", sizeof("GET / HTTP/1.0\r\n\r\n"));
-  printf("wrote: %d\n", wrote);
-  char buf[1024];
-  int read = tinysocket_read(sock, buf, sizeof(buf)-1);
-  buf[read] = '\0';
-  perror("WTF");
-  printf("read: %d\n", read);
-  printf("%s\n", buf);
-
-  tinysocket_close(sock);
-  tinysocket_free(sock);
+  const char* msg = "hoge";
+  ssize_t sent = p6_socket_send(sock, msg, strlen(msg), 0);
+  printf("sent: %d\n", sent);
+  char buf[5];
+  ssize_t received = p6_socket_recv(sock, buf, sizeof(buf), 0);
+  printf("received: %d\n", received);
+  if (received < 0) {
+    printf("%s\n", p6_socket_strerror(sock));
+  } else {
+    buf[received] = '\0';
+    printf("received: %s\n", buf);
+  }
 }
 #endif

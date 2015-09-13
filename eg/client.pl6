@@ -11,7 +11,8 @@ my $sock = Raw::Socket::INET.new(
 $sock.send("GET / HTTP/1.0\r\n\r\n".encode('utf-8'), 0);
 my $buf = Buf.new;
 $buf[100-1] = 0; # extend buffer
-while ((my $readlen = $sock.recv($buf, 100, 0)) > 0) {
+my $readlen;
+while (($readlen = $sock.recv($buf, 100, 0)) > 0) {
     say($buf.subbuf(0, $readlen).decode('utf-8'));
 }
 

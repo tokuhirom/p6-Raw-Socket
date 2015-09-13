@@ -46,12 +46,16 @@ sub p6_socket_listen(OpaquePointer, int $backlog)
     returns int
     is native(&library) { ... }
 
+sub p6_socket_connect(OpaquePointer, Str $host, Str $service)
+    returns int
+    is native(&library) { ... }
+
 sub p6_socket_accept(OpaquePointer, OpaquePointer)
     returns int
     is native(&library) { ... }
 
 sub p6_socket_recv(OpaquePointer, Buf, int, int)
-    returns int
+    returns int64
     is native(&library) { ... }
 
 sub p6_socket_send(OpaquePointer, Buf, int, int)
@@ -66,6 +70,8 @@ class Raw::Socket::INET {
     has OpaquePointer $!sock;
 
     has Int $.listen;
+    has Str $.host;
+    has Int $.port;
     has Str $.localhost = '0.0.0.0';
     has int $.localport;
     has Bool $.reuseaddr = True;
@@ -73,7 +79,6 @@ class Raw::Socket::INET {
     method new(*%args is copy) {
         fail "Nothing given for new socket to connect or bind to" unless %args<host> || %args<listen>;
 
-        fail "client socket does not supported yet" unless %args<listen>;
         self.bless(|%args)!initialize()
     }
 
@@ -89,20 +94,30 @@ class Raw::Socket::INET {
         if (!$!sock) {
             die "cannot allocate memory";
         }
-        if (p6_socket_inet_socket($!sock) < 0) {
-            die "cannot open socket: {self!error}";
-        }
-        if ($.reuseaddr) {
-            if (p6_socket_set_so_reuseaddr($!sock, 1) < 0) {
-                die "cannot set SO_REUSEADDR: {self!error}";
+
+        if ($.listen) {
+            if (p6_socket_inet_socket($!sock) < 0) {
+                die "cannot open socket: {self!error}";
             }
-        }
-        my $s = p6_socket_inet_bind($!sock, $.localhost, $.localport);
-        if ($s != 0) {
-            die "cannot bind $.localhost:$.localport: {self!error}";
-        }
-        if (p6_socket_listen($!sock, $.listen) < 0) {
-            die "cannot listen: {self!error}";
+            if ($.reuseaddr) {
+                if (p6_socket_set_so_reuseaddr($!sock, 1) < 0) {
+                    die "cannot set SO_REUSEADDR: {self!error}";
+                }
+            }
+            my $s = p6_socket_inet_bind($!sock, $.localhost, $.localport);
+            if ($s != 0) {
+                die "cannot bind $.localhost:$.localport: {self!error}";
+            }
+            if (p6_socket_listen($!sock, $.listen) < 0) {
+                die "cannot listen: {self!error}";
+            }
+        } elsif ($.host) {
+            if (!$.port) {
+                fail "missing port";
+            }
+            if (p6_socket_connect($!sock, $.host, $.port.Str) < 0) {
+                die "cannot connect: {self!error}";
+            }
         }
         return self;
     }
