@@ -12,7 +12,6 @@
 
 typedef struct {
   /* TODO: remove */
-  int err;
   const char *errmsg;
   int fd;
   union {
@@ -34,16 +33,15 @@ void p6_socket_free(p6_socket* self) {
 }
 
 const char* p6_socket_strerror(p6_socket* self) {
-  if (self->errmsg != NULL) {
-    return self->errmsg;
-  }
-  return strerror(self->err);
+  return self->errmsg;
 }
 
 int p6_socket_inet_socket(p6_socket* self) {
   assert(self != NULL);
   self->fd = socket(AF_INET, SOCK_STREAM|SOCK_CLOEXEC, 0);
-  self->err = errno;
+  if (self->fd < 0) {
+    self->errmsg = strerror(errno);
+  }
   return self->fd;
 }
 
@@ -51,7 +49,9 @@ int p6_socket_inet_socket(p6_socket* self) {
 // set appropriately.
 int p6_socket_set_so_reuseaddr(p6_socket* self, int n) {
   int retval = setsockopt(self->fd, 0, SO_REUSEADDR, &n, sizeof(int));
-  self->err = errno;
+  if (retval < 0) {
+    self->errmsg = strerror(errno);
+  }
   return retval;
 }
 
@@ -68,7 +68,9 @@ int p6_socket_inet_bind(p6_socket* self, const char* host, int port) {
   addr.sin_addr.s_addr = inet_addr(host);
 
   n = bind(self->fd, (struct sockaddr *)&addr, sizeof(struct sockaddr_in));
-  self->err = errno;
+  if (n < 0) {
+    self->errmsg = strerror(errno);
+  }
   return n;
 }
 
@@ -119,7 +121,9 @@ int p6_socket_connect(p6_socket* self, const char *host, const char* service) {
 
 int p6_socket_listen(p6_socket* self, int backlog) {
   int retval = listen(self->fd, backlog);
-  self->err = errno;
+  if (retval < 0) {
+    self->errmsg = strerror(errno);
+  }
   return retval;
 }
 
@@ -129,7 +133,7 @@ int p6_socket_accept(p6_socket* self, p6_socket* csock) {
   peer_addr_size = sizeof(csock->addr);
   retval = accept(self->fd, (struct sockaddr*)&(csock->addr), &peer_addr_size);
   if (retval < 0) {
-    self->err = errno;
+    self->errmsg = strerror(errno);
   } else {
     csock->fd = retval;
   }
@@ -138,19 +142,25 @@ int p6_socket_accept(p6_socket* self, p6_socket* csock) {
 
 ssize_t p6_socket_recv(p6_socket* self, char* buf, size_t len, int flags) {
   ssize_t retval = recv(self->fd, buf, len, flags);
-  self->err = errno;
+  if (retval < 0) {
+    self->errmsg = strerror(errno);
+  }
   return retval;
 }
 
 ssize_t p6_socket_close(p6_socket* self) {
   ssize_t retval = close(self->fd);
-  self->err = errno;
+  if (retval < 0) {
+    self->errmsg = strerror(errno);
+  }
   return retval;
 }
 
 int p6_socket_send(p6_socket* self, const char* buf, size_t len, int flags) {
   int retval = send(self->fd, buf, len, flags);
-  self->err = errno;
+  if (retval < 0) {
+    self->errmsg = strerror(errno);
+  }
   return retval;
 }
 
