@@ -13,6 +13,8 @@ DESCRIPTION
 
 Raw::Socket::INET is workaround for [https://github.com/MoarVM/MoarVM/issues/165](https://github.com/MoarVM/MoarVM/issues/165).
 
+This calls BSD socket APIs directly.
+
 COPYRIGHT AND LICENSE
 =====================
 
