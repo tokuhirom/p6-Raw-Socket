@@ -47,19 +47,23 @@ sub p6_socket_listen(OpaquePointer, int $backlog)
     is native(&library) { ... }
 
 sub p6_socket_connect(OpaquePointer, Str $host, Str $service)
-    returns int
+    returns int8
     is native(&library) { ... }
 
 sub p6_socket_accept(OpaquePointer, OpaquePointer)
     returns int
     is native(&library) { ... }
 
-sub p6_socket_recv(OpaquePointer, Buf, int, int)
+sub p6_socket_recv(OpaquePointer, Buf, int64, int)
     returns int64
     is native(&library) { ... }
 
-sub p6_socket_send(OpaquePointer, Buf, int, int)
+sub p6_socket_send(OpaquePointer, Buf, int64, int)
     returns int
+    is native(&library) { ... }
+
+sub p6_socket_port(OpaquePointer)
+    returns int32
     is native(&library) { ... }
 
 sub p6_socket_close(OpaquePointer)
@@ -108,6 +112,12 @@ class Raw::Socket::INET {
             if ($s != 0) {
                 die "cannot bind $.localhost:$.localport: {self!error}";
             }
+            if ($!localport == 0) {
+                $!localport = p6_socket_port($!sock);
+                if ($!localport < 0) {
+                    die "cannot get port number from socket: {self!error}";
+                }
+            }
             if (p6_socket_listen($!sock, $.listen) < 0) {
                 die "cannot listen: {self!error}";
             }
@@ -115,7 +125,8 @@ class Raw::Socket::INET {
             if (!$.port) {
                 fail "missing port";
             }
-            if (p6_socket_connect($!sock, $.host, $.port.Str) < 0) {
+            my $r = p6_socket_connect($!sock, $.host, $.port.Str);
+            if ($r < 0) {
                 die "cannot connect: {self!error}";
             }
         }
@@ -148,8 +159,8 @@ class Raw::Socket::INET {
         return $s;
     }
 
-    method send(Blob $buf, int $flags) {
-        my $s = p6_socket_send($!sock, $buf, $buf.elems, $flags);
+    method send(Blob $buf, int64 $len, int $flags) {
+        my $s = p6_socket_send($!sock, $buf, $len, $flags);
         if ($s < 0) {
             die "cannot send: {self!error}";
         }

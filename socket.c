@@ -11,7 +11,6 @@
 #include <netdb.h>
 
 typedef struct {
-  /* TODO: remove */
   const char *errmsg;
   int fd;
   union {
@@ -36,9 +35,21 @@ const char* p6_socket_strerror(p6_socket* self) {
   return self->errmsg;
 }
 
+int32_t p6_socket_port(p6_socket* self) {
+  struct sockaddr_in addr;
+  socklen_t addrlen = sizeof(struct sockaddr_in);
+  int r = getsockname(self->fd, (struct sockaddr*)&addr, &addrlen);
+  if (r < 0) {
+     self->errmsg = strerror(errno);
+     return -1;
+  } else {
+     return ntohs(addr.sin_port);
+  }
+}
+
 int p6_socket_inet_socket(p6_socket* self) {
   assert(self != NULL);
-  self->fd = socket(AF_INET, SOCK_STREAM|SOCK_CLOEXEC, 0);
+  self->fd = socket(AF_INET, SOCK_STREAM|SOCK_CLOEXEC, IPPROTO_TCP);
   if (self->fd < 0) {
     self->errmsg = strerror(errno);
   }
@@ -74,7 +85,7 @@ int p6_socket_inet_bind(p6_socket* self, const char* host, int port) {
   return n;
 }
 
-int p6_socket_connect(p6_socket* self, const char *host, const char* service) {
+int8_t p6_socket_connect(p6_socket* self, const char *host, const char* service) {
   struct addrinfo hints;
   struct addrinfo *result, *rp;
   int sfd;
@@ -101,22 +112,19 @@ int p6_socket_connect(p6_socket* self, const char *host, const char* service) {
     if (sfd == -1)
       continue;
 
-    if (connect(sfd, rp->ai_addr, rp->ai_addrlen) == 0)
-      break;                  /* Success */
+    if (connect(sfd, rp->ai_addr, rp->ai_addrlen) == 0) {
+      freeaddrinfo(result);
+      self->fd = sfd;
+      return 0;
+    }
 
     close(sfd);
   }
 
   freeaddrinfo(result);
 
-  if (rp == NULL) {               /* No address succeeded */
-    self->errmsg = "could not connect";
-    return -1;
-  }
-
-  self->fd = sfd;
-
-  return sfd;
+  self->errmsg = "could not connect";
+  return -1;
 }
 
 int p6_socket_listen(p6_socket* self, int backlog) {
@@ -157,7 +165,10 @@ ssize_t p6_socket_close(p6_socket* self) {
 }
 
 int p6_socket_send(p6_socket* self, const char* buf, size_t len, int flags) {
-  int retval = send(self->fd, buf, len, flags);
+  int retval;
+
+  assert(self->fd != 0);
+  retval = send(self->fd, buf, len, flags);
   if (retval < 0) {
     self->errmsg = strerror(errno);
   }
@@ -165,15 +176,21 @@ int p6_socket_send(p6_socket* self, const char* buf, size_t len, int flags) {
 }
 
 #ifdef TEST_CLIENT
-int main() {
+
+#include <sys/types.h>
+#include <signal.h>
+
+void client(int port) {
   p6_socket* sock = p6_socket_new();
   if (sock == NULL) {
     printf("cannot allocate memory\n");
     exit(1);
   }
-
-  if (p6_socket_connect(sock, "127.0.0.1", "9999") < 0) {
-    printf("%s\n", p6_socket_strerror(sock));
+  // parent
+  char port_buf[8];
+  snprintf(port_buf, sizeof(port_buf), "%d", port);
+  if (p6_socket_connect(sock, "127.0.0.1", port_buf) < 0) {
+    printf("connect: %s\n", p6_socket_strerror(sock));
     exit(1);
   }
   const char* msg = "hoge";
@@ -181,12 +198,65 @@ int main() {
   printf("sent: %d\n", sent);
   char buf[5];
   ssize_t received = p6_socket_recv(sock, buf, sizeof(buf), 0);
-  printf("received: %d\n", received);
   if (received < 0) {
     printf("%s\n", p6_socket_strerror(sock));
   } else {
     buf[received] = '\0';
     printf("received: %s\n", buf);
+  }
+}
+
+int main() {
+  p6_socket* sock = p6_socket_new();
+  if (sock == NULL) {
+    printf("cannot allocate memory\n");
+    exit(1);
+  }
+  if (p6_socket_inet_socket(sock) < 0) {
+    printf("socket: %s\n", p6_socket_strerror(sock));
+    exit(1);
+  }
+  if (p6_socket_inet_bind(sock, "0.0.0.0", 0) < 0) {
+    printf("bind: %s\n", p6_socket_strerror(sock));
+    exit(1);
+  }
+  if (p6_socket_listen(sock, 60) < 0) {
+    printf("listen: %s\n", p6_socket_strerror(sock));
+    exit(1);
+  }
+
+  int port = p6_socket_port(sock);
+  printf("listening %d\n", port);
+
+
+  int pid = fork();
+  if (pid == 0) {
+    while (1) {
+      p6_socket* csock = p6_socket_new();
+      if (csock == NULL) {
+        printf("cannot allocate memory\n");
+        exit(1);
+      }
+      if (p6_socket_accept(sock, csock) < 0) {
+        printf("accept: %s\n", p6_socket_strerror(sock));
+        exit(1);
+      }
+      char buf[1024];
+      int received = p6_socket_recv(csock, buf, sizeof(buf), 0);
+      printf("received: %d\n", received);
+      int sent = p6_socket_send(csock, buf, received, 0);
+      p6_socket_close(csock);
+      p6_socket_free(csock);
+    }
+    exit(0);
+  } else if (pid > 0) {
+    sleep(4);
+    client(port);
+    kill(pid, SIGTERM);
+    exit(0);
+  } else {
+    perror("fork failed");
+    exit(1);
   }
 }
 #endif

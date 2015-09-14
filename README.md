@@ -1,12 +1,17 @@
+[![Build Status](https://travis-ci.org/tokuhirom/p6-Raw-Socket.svg?branch=master)](https://travis-ci.org/tokuhirom/p6-Raw-Socket)
+
 NAME
 ====
 
-Raw::Socket - Raw level socket client using NativeCall
+Raw::Socket - raw socket
+
+SYNOPSIS
+========
 
 DESCRIPTION
 ===========
 
-Raw::Socket is socket library. This is workaround for [MoarVM issue #165](https://github.com/MoarVM/MoarVM/issues/165).
+Raw::Socket::INET is workaround for [https://github.com/MoarVM/MoarVM/issues/165](https://github.com/MoarVM/MoarVM/issues/165).
 
 COPYRIGHT AND LICENSE
 =====================

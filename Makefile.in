@@ -4,7 +4,7 @@ all: %DESTDIR%/libsocket%SO%
 	    %LD% %LDSHARED% %LDFLAGS% %LIBS% %LDOUT%%DESTDIR%/libsocket%SO% libsocket%O%
 
 libsocket%O%: socket.c
-	    %CC% -g -DNDEBUG -c %CCSHARED% %CCFLAGS% %CCOUT%libsocket%O% socket.c
+	    %CC% -g -c %CCSHARED% %CCFLAGS% %CCOUT%libsocket%O% socket.c
 
 clean:
 	rm -f libsocket%O% %DESTDIR%/libsocket%SO%
