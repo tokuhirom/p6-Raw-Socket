@@ -54,11 +54,11 @@ sub p6_socket_accept(OpaquePointer, OpaquePointer)
     returns int
     is native(&library) { ... }
 
-sub p6_socket_recv(OpaquePointer, Buf, int64, int)
+sub p6_socket_recv(OpaquePointer, Blob, int64, int)
     returns int64
     is native(&library) { ... }
 
-sub p6_socket_send(OpaquePointer, Buf, int64, int)
+sub p6_socket_send(OpaquePointer, Blob, int64, int)
     returns int
     is native(&library) { ... }
 
@@ -151,7 +151,7 @@ class Raw::Socket::INET {
         return self;
     }
 
-    method recv(Buf $buf, int64 $len, int $flags) {
+    method recv(Blob $buf, int64 $len, int $flags) {
         my $s = p6_socket_recv($!sock, $buf, $buf.elems, $flags);
         if ($s < 0) {
             die "cannot recv: {self!error}";
