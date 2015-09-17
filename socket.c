@@ -6,9 +6,19 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#include <stdint.h>
 #include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
+
+#ifndef _WIN32
+# include <sys/socket.h>
+# include <netdb.h>
+# define closesocket(x) close(x)
+#else
+# include <ws2tcpip.h>
+# ifndef SOCK_CLOEXEC
+#  define SOCK_CLOEXEC 0
+# endif
+#endif
 
 typedef struct {
   const char *errmsg;
@@ -118,7 +128,7 @@ int8_t p6_socket_connect(p6_socket* self, const char *host, const char* service)
       return 0;
     }
 
-    close(sfd);
+    closesocket(sfd);
   }
 
   freeaddrinfo(result);
@@ -157,7 +167,7 @@ ssize_t p6_socket_recv(p6_socket* self, char* buf, size_t len, int flags) {
 }
 
 ssize_t p6_socket_close(p6_socket* self) {
-  ssize_t retval = close(self->fd);
+  ssize_t retval = closesocket(self->fd);
   if (retval < 0) {
     self->errmsg = strerror(errno);
   }
