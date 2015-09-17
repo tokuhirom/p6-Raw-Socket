@@ -15,9 +15,11 @@
 # define closesocket(x) close(x)
 #else
 # include <ws2tcpip.h>
-# ifndef SOCK_CLOEXEC
-#  define SOCK_CLOEXEC 0
-# endif
+#endif
+
+/* TODO should be fcntl(FD_CLOEXEC) ? */
+#ifndef SOCK_CLOEXEC
+# define SOCK_CLOEXEC 0
 #endif
 
 typedef struct {
