@@ -8,7 +8,8 @@ my $sock = Raw::Socket::INET.new(
     host => '127.0.0.1',
     port => 80,
 );
-$sock.send("GET / HTTP/1.0\r\n\r\n".encode('utf-8'), 0);
+my $msg = "GET / HTTP/1.0\r\n\r\n".encode('utf-8');
+$sock.send($msg, $msg.bytes, 0);
 my $buf = Buf.new;
 $buf[100-1] = 0; # extend buffer
 my $readlen;
