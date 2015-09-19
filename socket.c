@@ -10,8 +10,10 @@
 #include <sys/types.h>
 
 #ifndef _WIN32
-# include <sys/socket.h>
+# include <arpa/inet.h>
 # include <netdb.h>
+# include <sys/socket.h>
+# include <unistd.h>
 # define closesocket(x) close(x)
 #else
 # include <ws2tcpip.h>
